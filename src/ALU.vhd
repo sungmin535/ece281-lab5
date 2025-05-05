@@ -7,79 +7,58 @@ entity ALU is
            i_B : in STD_LOGIC_VECTOR (7 downto 0);
            i_op : in STD_LOGIC_VECTOR (2 downto 0);
            o_result : out STD_LOGIC_VECTOR (7 downto 0);
-           o_flags : out STD_LOGIC_VECTOR (3 downto 0));
+           o_flags : out STD_LOGIC_VECTOR (3 downto 0)); -- NZCV
 end ALU;
 
 architecture Behavioral of ALU is
-    -- Internal signals
-    signal A_s, B_s    : signed(7 downto 0) := (others => '0');
-    signal R_s         : signed(8 downto 0) := (others => '0');
-    signal R8          : signed(7 downto 0) := (others => '0');
-    signal neg_f, zero_f, car_f, ovf_f : std_logic := '0';
-begin
-    -- Convert inputs to signed
-    A_s <= signed(i_A);
-    B_s <= signed(i_B);
-
-    process(A_s, B_s, i_op)
-    begin
-        -- Perform operation based on opcode
-        case i_op is
-            when "000" =>  -- Addition
-                R_s <= resize(A_s, 9) + resize(B_s, 9);
-                
-            when "001" =>  -- Subtraction
-                R_s <= resize(A_s, 9) - resize(B_s, 9);
-                
-            when "010" =>  -- AND
-                R_s(7 downto 0) <= A_s and B_s;
-                R_s(8) <= '0';
-                
-            when "011" =>  -- OR
-                R_s(7 downto 0) <= A_s or B_s;
-                R_s(8) <= '0';
-                
-            when others =>  -- Default case
-                R_s <= (others => '0');
-        end case;
-        
-        -- Truncate to 8 bits for result
-        R8 <= R_s(7 downto 0);
-        
-        -- Zero flag
-        if R8 = 0 then
-            zero_f <= '1';
-        else
-            zero_f <= '0';
-        end if;
-        
-        -- Negative flag
-        neg_f <= R8(7);
-        
-        -- Carry flag
-        car_f <= R_s(8);
-        
-        -- Overflow flag
-        if i_op = "000" then  -- Addition
-            -- Overflow occurs when adding two numbers with same sign but result has different sign
-            if A_s(7) = B_s(7) and R8(7) /= A_s(7) then
-                ovf_f <= '1';
-            else
-                ovf_f <= '0';
-            end if;
-        elsif i_op = "001" then  -- Subtraction
-            -- Overflow for subtraction: operands with different signs and result sign differs from A
-            if A_s(7) /= B_s(7) and R8(7) /= A_s(7) then
-                ovf_f <= '1';
-            else
-                ovf_f <= '0';
-            end if;
-        else  -- Logical operations
-            ovf_f <= '0';
-        end if;
-    end process;
+    constant add : std_logic_vector(2 downto 0) := "000";
+    constant subtract : std_logic_vector(2 downto 0) := "001";
+    constant and_oper : std_logic_vector(2 downto 0) := "010";
+    constant or_oper  : std_logic_vector(2 downto 0) := "011";
     
-    -- Assign outputs outside the process
-    o_result <= std_logic_vector(R8);
-    o_flags <= neg_f & zero_f & car_f & ovf_f;  -- NZCV format
+    signal adding_results : std_logic_vector(8 downto 0);
+    signal subtracting_results : std_logic_vector(8 downto 0);
+    signal and_results : std_logic_vector(7 downto 0);
+    signal or_results  : std_logic_vector(7 downto 0);
+    signal output_results : std_logic_vector(7 downto 0);
+    signal flagN : std_logic;
+    signal flagZ : std_logic;
+    signal flagC : std_logic;
+    signal flagV : std_logic;
+    
+begin
+    adding_results <= std_logic_vector('0' & unsigned(i_A)+unsigned(i_B));
+    subtracting_results <= std_logic_vector('0' & unsigned(i_A)-unsigned(i_B));        
+    and_results <= i_A and i_B;
+    or_results <= i_A or i_B;
+    
+    process(i_op,adding_results,subtracting_results,and_results,or_results)
+    begin
+        case i_op is
+            when add =>
+                output_results <= adding_results(7 downto 0);
+                flagC <= adding_results(8);
+                flagV <= (i_A(7) and i_B(7) and not adding_results(7)) or (not i_A(7) and not i_B(7) and adding_results(7));
+            when subtract =>
+                output_results <= subtracting_results(7 downto 0);
+                flagC <= not subtracting_results(8);
+                flagV <= (i_A(7) and not i_B(7) and not subtracting_results(7)) or (not i_A(7) and i_B(7) and subtracting_results(7));
+            when and_oper =>
+                output_results <= and_results;
+                flagC <= '0';
+                flagV <= '0';
+            when or_oper =>
+                output_results <= or_results;
+                flagC <= '0';
+                flagV <= '0';
+            when others =>
+                output_results <= adding_results(7 downto 0);
+                flagC <= '0';
+                flagV <= '0';
+        end case;
+    end process;
+    flagN <= output_results(7);
+    flagZ <= '1' when output_results = "00000000" else '0';
+    o_result <= output_results;
+    o_flags <= flagN & flagZ & flagC & flagV;
 end Behavioral;
