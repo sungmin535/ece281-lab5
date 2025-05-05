@@ -102,6 +102,11 @@ architecture top_basys3_arch of top_basys3 is
         );
     end component TDM4;
     
+    component sevenseg_decoder is
+    port ( i_Hex : in STD_LOGIC_VECTOR (3 downto 0);
+           o_seg_n : out STD_LOGIC_VECTOR (6 downto 0));
+    end component sevenseg_decoder;
+    
     
     signal w_clk_div    : std_logic;
     signal w_cycle      : std_logic_vector(3 downto 0);
@@ -175,6 +180,12 @@ begin
             o_data  => w_data4,
             o_sel   => an
         );
+        
+     seg_decoder_inst: sevenseg_decoder
+    port map (
+        i_Hex => w_data4,
+        o_seg_n => seg
+    );
     
     -- CONCURRENT STATEMENTS ----------------------------
     
@@ -202,26 +213,6 @@ begin
         end if;
     end process;
     
-process(w_data4, w_cycle)
-begin
-    if w_cycle = "0001" and w_data4(3) = '0' then
-        seg <= "1111111"; 
-    else
-        case w_data4 is
-            when "0000" => seg <= "1000000";  -- 0
-            when "0001" => seg <= "1111001";  -- 1
-            when "0010" => seg <= "0100100";  -- 2
-            when "0011" => seg <= "0110000";  -- 3
-            when "0100" => seg <= "0011001";  -- 4
-            when "0101" => seg <= "0010010";  -- 5
-            when "0110" => seg <= "0000010";  -- 6
-            when "0111" => seg <= "1111000";  -- 7
-            when "1000" => seg <= "0000000";  -- 8 
-            when "1001" => seg <= "0011000";  -- 9
-            when others => seg <= "1111111";  
-        end case;
-    end if;
-end process;
 
     led(3 downto 0) <= w_cycle; 
     led(15 downto 12) <= w_flags;
